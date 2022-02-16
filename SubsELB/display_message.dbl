@@ -1,0 +1,30 @@
+;-------------------------------------------------------------------------------
+;;;<summary>Displays a single line message in a popup window.</summary>
+;;;<param name="a_text">Message to be displayed.</param>
+;
+subroutine DISPLAY_MESSAGE
+	required in a_text  ,a      ;Message to display
+	endparams
+
+	.include "WND:windows.def"
+
+	record
+		msgid           ,i4     ;Message window ID
+		width           ,i4     ;Calculated window width
+		col             ,i4     ;Calculated column for window
+		char            ,a1     ;Input buffer
+	endrecord
+
+proc
+
+	width = %trim(a_text)+2
+	col = (80-width) / 2
+
+	xcall create_window(msgid,"MESSAGE",3,width,10,col,"Message")
+	xcall display_text(msgid,2,2,a_text)
+	xcall wait_key(msgid,2,width,char)
+	xcall delete_window(msgid)
+
+	xreturn
+
+endsubroutine

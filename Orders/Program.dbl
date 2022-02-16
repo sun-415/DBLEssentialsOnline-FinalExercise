@@ -1,0 +1,339 @@
+
+;;; <summary>
+;;; The main entry point for the application.
+;;; </summary>
+main Orders
+
+	.include "WND:windows.def"
+	.include "HEADER" REPOSITORY, record="header"
+	.include "DETAIL" REPOSITORY, structure="strDetail"
+
+	record
+		system_date		,a20
+		year			,d4 @system_date
+		month			,d2 @system_date+4
+		day				,d2 @system_date+6
+	endrecord
+
+	record
+		termch          ,i4 ,1      ;Terminal channel number
+		menu_id         ,i4         ;Menu window ID
+		header_id       ,i4         ;Order header window ID
+		detail_id       ,i4         ;Order detail window ID
+		hchan           ,i4         ;Header file channel number
+		dchan           ,i4         ;Detail file channel number
+		temp            ,a80        ;Temporary buffer
+	endrecord
+
+	record
+		m_handle        ,i4         ;Dynamic memory handle
+		count           ,i4,0       ;Number of detail records currently in dynamic memory
+		max             ,i4,3       ;Maximum detail records currently supported
+	endrecord
+
+porc
+
+	xcall startup
+	xcall process
+	xcall shutdown
+
+	stop
+
+;----------------------------------------
+;Application startup processing
+;
+Startup,
+
+	;Get the current date and time
+	system_date = %datetime
+
+	;Open terminal channel
+	open(termch,i,"tt:")
+
+	;Setup environment
+	xcall flags(7004020,1)
+
+	;Clear screen
+	display(termch,$scr_clr(screen))
+
+	;Initialize windowing system
+	xcall w_init(1,termch,5)
+
+	;Set caption
+	xcall w_caption(WC_SET,"My First Synergy Application")
+
+	;Allocate dynamic memory
+	m_handle=%mem_proc(DM_ALLOC,(^size(strDetail)*max))
+
+	;Open order header file.  If not found, create it
+	repeat
+	begin
+		open(hchan=%syn_freechn,u:i,"DAT:header.ism") [$ERR_FNF=hnf]
+		exitloop
+hnf,    xcall isamc("DAT:header.ism",46,1,"start=1,length=6,nodups,nomodify")
+	end
+
+	;Open order detail file.  If not found, create it
+	repeat
+	begin
+		open(dchan=%syn_freechn,u:i,"DAT:detail.ism") [$ERR_FNF=dnf]
+		exitloop
+dnf,    xcall isamc("DAT:detail.ism",33,1,"start=1:7,length=6:4,nodups,nomodify")
+	end
+
+	return
+
+;----------------------------------------
+;Application shutdown processing
+;
+Shutdown,
+
+	;Close windowing system
+	xcall w_exit
+
+	;Clear screen
+	display(termch,$scr_clr(screen))
+
+	;Close terminal
+	close termch
+
+	;Deallocate dynamic memory
+	m_handle=%mem_proc(DM_FREE,m_handle)
+
+	;Close file channels
+	close hchan                
+	close dchan
+
+	return
+
+;----------------------------------------
+;Main application processing
+;
+Process,
+
+	xcall create_window(menu_id,"MENU",10,30,5,25,"Order Processing Menu")
+	xcall display_text(menu_id,2,3,"[A] Add an order")
+	xcall display_text(menu_id,4,3,"[V] View latest order")
+	xcall display_text(menu_id,6,3,"[E] Exit")
+	xcall display_text(menu_id,8,3,"Select an option:")
+
+	repeat
+	begin
+		data keyPressed, a1
+
+		xcall wait_key(menu_id,8,21,keyPressed)
+		upcase keyPressed
+
+		using keyPressed select
+		("A"),
+			call order_header
+		("V"),
+			call view_order
+		("E"),
+			exitloop
+		(),
+			xcall display_message("Invalid option, try again!")
+		endusing
+
+	end
+
+	xcall delete_window(menu_id)
+
+	return
+
+;----------------------------------------
+;Order header processing
+;
+Order_header,
+
+	xcall create_window(header_id,"HEADER",10,60,6,10,"Order Header")
+
+	xcall display_text(header_id,2,2,"    Order number:")
+	xcall display_text(header_id,4,2,"Customer account:")
+	xcall display_text(header_id,5,2,"      Order date:")
+	xcall display_text(header_id,6,2,"       Placed by:")
+	xcall display_text(header_id,7,2,"       Sales rep:")
+
+	repeat
+	begin
+
+		xcall input(header_id,2,20,oh_number)
+		if oh_number.eq.0
+			exitloop
+
+		if (%file_access(FileOp.Find,hchan,,oh_number).eq.FileResult.OK) then
+			xcall display_message("Order already exists!")
+		else
+		begin
+			xcall input(header_id,4,20,oh_customer,1)
+			xcall input(header_id,5,20,oh_date,,,1)
+			xcall input(header_id,6,20,oh_contact,1)
+			xcall input(header_id,7,20,oh_salesrep,1)
+
+			call order_detail
+
+			if (.not.count) then
+				xcall display_message("No items entered.  Order not saved")
+			else
+			begin
+				if (%file_access(FileOp.Create,hchan,header).eq.FileResult.OK) then
+				begin
+					data x, int
+					for x from 1 thru count
+					begin
+						if (%file_access(FileOp.Create,dchan,^m(strDetail[x],m_handle))!=FileResult.OK)
+							xcall display_message("Failed to store a detail record!")
+					end
+				end
+				else
+					xcall display_message("Failed to create order!")
+			end
+
+			xcall clear_box(header_id,2,20,7,60)
+
+		end
+	end
+
+	xcall delete_window(header_id)
+
+	return
+
+;----------------------------------------
+;Order detail processing
+;
+Order_detail,
+
+	clear count
+	xcall create_window(detail_id,"DETAIL",10,60,8,15,"")
+
+	xcall display_text(detail_id,2,2,"  Part code:")
+	xcall display_text(detail_id,4,2,"   Quantity:")
+	xcall display_text(detail_id,5,2,"      Price:")
+
+	repeat
+	begin
+
+		incr count
+		xcall s_bld(temp,,"Order Detail (Entering item %d of %d)",count,max)
+		xcall w_brdr(detail_id,WB_TITLE,%atrim(temp))
+
+		xcall input(detail_id,2,15,^m(strDetail[count].od_part,m_handle))
+		if ^m(strDetail[count].od_part,m_handle).eqs.""
+		begin
+			decr count
+			exitloop
+		end
+
+		xcall input(detail_id,4,15,^m(strDetail[count].od_qty,m_handle),1)
+		xcall input(detail_id,5,15,^m(strDetail[count].od_unitprice,m_handle),1)
+
+		^m(strDetail[count].od_number,m_handle)=oh_number
+		^m(strDetail[count].od_item,m_handle)=count
+
+		xcall clear_box(detail_id,2,15,5,60)
+	end
+
+	xcall delete_window(detail_id)
+
+	return
+
+;----------------------------------------
+;When the number of defail records to be held in dynamic memory exceeds
+;the currently allocated memory, allocate some more!
+;
+Extend_dynamic_memory,
+
+	max=max+3
+	m_handle=%mem_proc(DM_RESIZ,(^size(strDetail)*max),m_handle)
+
+	return
+
+;----------------------------------------
+;
+View_order,
+
+	xcall create_window(header_id,"HEADER",10,60,6,10,"Order Header")
+
+	xcall display_text(header_id,2,2,"    Order number:")
+	xcall display_text(header_id,4,2,"Customer account:")
+	xcall display_text(header_id,5,2,"      Order date:")
+	xcall display_text(header_id,6,2,"       Placed by:")
+	xcall display_text(heeder_id,7,2,"       Sales rep:")
+
+	repeat
+	begin
+
+		xcall input(header_id,2,20,oh_number)
+
+		if oh_number.eq.0
+			exitloop
+
+		if (%file_access(FileOp.ReadNext,hchan,header,oh_number).ne.FileResult.OK) then
+			xcall display_message("Order not found!")
+		else
+		begin
+			data keyPressed, a1
+
+			xcall display_text(header_id,4,20,oh_customer)
+			xcall display_text(header_id,5,20,^a(oh_date))
+			xcall display_text(header_id,6,20,oh_contact)
+			xcall display_text(header_id,7,20,^a(oh_salesrep))
+
+			xcall display_text(header_id,9,2,"Press RETURN to view order details: ")
+			xcall wait_key(header_id,9,38,keyPressed)
+
+			call view_order_detail
+
+			xcall clear_box(header_id,4,20,9,60)
+
+		end
+	end
+
+	xcall delete_window(header_id)
+
+	return
+
+View_order_detail,
+
+	if (%file_access(FileOp.Find,dchan,,oh_number).ne.FileResult.OK) then
+		xcall display_message("No order detail records found!")
+	else
+	begin
+		xcall create_window(detail_id,"DETAIL",10,60,8,15,"Order Detail")
+
+		xcall display_text(detail_id,2,2,"  Part code:")
+		xcall display_text(detail_id,4,2,"   Quantity:")
+		xcall display_text(detail_id,5,2,"      Price:")
+
+		repeat
+		begin
+			if (%file_access(FileOp.ReadNext,dchan,^m(strDetail[1],m_handle)).ne.FileResult.OK) then
+				exitloop
+			else
+			begin
+				if ^m(strDetail[1].od_number,m_handle).ne.oh_number then
+					exitloop
+				else
+				begin
+					data keyPressed, a1
+
+					xcall s_bld(temp,,"Order Detail (Order %d, item %d)",
+					&	oh_number,^m(strDetail[1].od_item,m_handle))
+					xcall w_brdr(detail_id,WB_TITLE,%atrim(temp))
+
+					xcall display_text(detail_id,2,15,^m(strDetail[1].od_part,m_handle))
+					xcall display_text(detail_id,4,15,^a(^m(strDetail[1].od_qty,m_handle)))
+					xcall display_text(detail_id,5,15,^a(^m(strDetail[1].od_unit_price,m_handle)))
+
+					xcall display_text(detail_id,9,2,"Press RETURN for the next item: ")
+					xcall wait_key(detail_id,9,34,keyPressed)
+				end
+			end
+		end
+	end
+
+	xcall delete_window(detail_id)
+
+	return
+
+endmain

@@ -1,0 +1,48 @@
+;-------------------------------------------------------------------------------
+;;;<summary>Creates a new Synergy window and returns a Window ID.</summary>
+;;;<param name="a_wndid">Returned Window ID.</param>
+;;;<param name="a_name">Unique window name.</param>
+;;;<param name="a_height">Height of window (rows).</param>
+;;;<param name="a_width">Width of window (columns).</param>
+;;;<param name="a_row">Screen row for placement of top left cell of window. (optional)</param>
+;;;<param name="a_col">Screen column for placement of top left cell of window. (optional)</param>
+;;;<param name="a_title">Window Title. (optional)</param>
+;
+subroutine CREATE_WINDOW
+	required out a_wndid    ,a      ;ID of created window
+	required in  a_name     ,a      ;Name of new window
+	required in  a_height   ,n      ;Height of new window
+	required in  a_width    ,d      ;Width of new window
+	optional in  a_row      ,n      ;Row position of new window
+	optional in  a_col      ,n      ;Column position of new window
+	optional in  a_title    ,a      ;Window title
+	endparams
+
+	.include "WND:windows.def"
+
+	record
+		row                 ,i4
+		col                 ,i4
+	endrecord
+
+proc
+
+	if (^passed(a_row)) then
+		row=a_row
+	else
+		row=1
+
+	if (^passed(a_col)) then
+		col=a_col
+	else
+		col=1
+
+	xcall w_proc(WP_CREATE,a_wndid,a_name,a_height,a_width,
+	&	WP_PLACE, a_wndid,row,col )
+
+	if (^passed(a_title))
+		xcall w_brdr(a_wndid,WB_TPOS,WBT_TOP,WBT_CENTER,WB_TITLE,a_title)
+
+	xreturn
+
+endsubroutine

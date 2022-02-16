@@ -1,0 +1,38 @@
+;-------------------------------------------------------------------------------
+;;;<summary>Waits for a key press on a Synergy window and returns the key that was pressed.</summary>
+;;;<param name="a_wndid">Window ID of window to get input from.</param>
+;;;<param name="a_row">Window row to get input at.</param>
+;;;<param name="a_col">Window column to get input at.</param>
+;;;<param name="a_key">Retuned key that was pressed (a1).</param>
+;
+subroutine WAIT_KEY
+	required in  a_wndid    ,n      ;ID of window for keypress
+	required in  a_row      ,n      ;Row position on window
+	required in  a_col      ,n      ;Column position on window
+	required out a_key      ,a      ;Key pressed
+	endparams
+
+	.include "WND:windows.def"
+
+proc
+
+	xcall w_disp(a_wndid,
+	&	WD_POS,a_row,a_col,
+	&	" ",
+	&	WD_POS,a_row,a_col,
+	&	WD_ACCEPT,a_key)
+
+.ifdef DBLNET
+	while (%w_info(WIF_TTSTS))
+.else
+	while (%ttsts())
+.endc
+	begin
+		data char, a1
+		xcall w_disp(a_wndid,WD_POS,a_row,a_col,WD_ACCEPT,char)
+	end
+
+	xreturn
+
+endsubroutine
+

@@ -1,0 +1,45 @@
+;-------------------------------------------------------------------------------
+;;;<summary>Clears all data from a box area on a Synergy window.</summary>
+;;;<param name="a_wndid">Window ID of window to be cleared.</param>
+;;;<param name="a_row_from">Window row of top left corner of box to clear.</param>
+;;;<param name="a_col_from">Window column of top left corner of box to clear.</param>
+;;;<param name="a_row_to">Window row of bottom right corner of box to clear.</param>
+;;;<param name="a_col_to">Window column of bottom right corner of box to clear.</param>
+;
+subroutine CLEAR_BOX
+	required in a_wndid     ,i      ;Window ID
+	required in a_row_from  ,n      ;Row to clear from
+	required in a_col_from  ,n      ;Column to clear from
+	required in a_row_to    ,n      ;Row to clear to
+	required in a_col_to    ,n      ;Column to clear to
+	endparams
+
+	.include "WND:windows.def"
+
+	literal
+		spaces              ,a256
+	endliteral
+
+	record
+		rows                ,i4     ;Number of rows to be cleared
+		cols                ,i4     ;Number of columns to be cleared
+		count               ,i4     ;Loop counter
+	endrecord
+
+proc
+
+	;Calculate the rows and columns to be cleared
+	rows = a_row_to - a_row_from + 1
+	cols = a_col_to - a_col_from + 1
+
+	;Clear the box, line by line
+	for count from 1 thru rows
+	begin
+		xcall w_disp(a_wndid,
+		&	WD_POS,(a_row_from+1+count),a_col_from,
+		&	spaces(1:cols))
+	end
+
+	xreturn
+
+endsubroutine
