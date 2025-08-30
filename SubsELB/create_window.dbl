@@ -9,10 +9,10 @@
 ;;;<param name="a_title">Window Title. (optional)</param>
 ;
 subroutine CREATE_WINDOW
-	required out a_wndid    ,a      ;ID of created window
+	required out a_wndid    ,i4      ;ID of created window
 	required in  a_name     ,a      ;Name of new window
 	required in  a_height   ,n      ;Height of new window
-	required in  a_width    ,d      ;Width of new window
+	required in  a_width    ,i4      ;Width of new window
 	optional in  a_row      ,n      ;Row position of new window
 	optional in  a_col      ,n      ;Column position of new window
 	optional in  a_title    ,a      ;Window title

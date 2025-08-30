@@ -36,8 +36,8 @@ proc
 	for count from 1 thru rows
 	begin
 		xcall w_disp(a_wndid,
-		&	WD_POS,(a_row_from+1+count),a_col_from,
-		&	spaces(1:cols))
+		&			 WD_POS,(a_row_from-1+count),a_col_from,
+		&			 spaces(1:cols))
 	end
 
 	xreturn
